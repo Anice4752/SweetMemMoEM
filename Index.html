@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบจัดการร้านSweet Memories</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Sarabun', sans-serif;
+            background-color: #fdfaf6; /* A warm, dessert-like background */
+        }
+        .table-available {
+            background-color: #d1fae5; /* Green-100 */
+            border: 2px solid #10b981; /* Green-500 */
+            color: #047857; /* Green-700 */
+            cursor: pointer;
+            transition: all 0.2s ease-in-out;
+        }
+        .table-available:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 10px rgba(16, 185, 129, 0.2);
+        }
+        .table-occupied {
+            background-color: #fee2e2; /* Red-100 */
+            border: 2px solid #ef4444; /* Red-500 */
+            color: #b91c1c; /* Red-700 */
+            cursor: pointer;
+            transition: all 0.2s ease-in-out;
+        }
+        .table-occupied:hover {
+             transform: scale(1.05);
+            box-shadow: 0 4px 10px rgba(239, 68, 68, 0.2);
+        }
+        .modal-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0,0,0,0.6);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 50;
+        }
+        .modal-content {
+            background-color: white;
+            padding: 2rem;
+            border-radius: 1rem;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            width: 90%;
+            max-width: 900px;
+        }
+        .receipt-modal-content {
+            background-color: white;
+            padding: 2rem;
+            border-radius: 0.5rem;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            width: 90%;
+            max-width: 400px;
+            font-family: 'Courier New', Courier, monospace;
+        }
+        /* Custom scrollbar for menu */
+        #menu-items::-webkit-scrollbar {
+            width: 8px;
+        }
+        #menu-items::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        #menu-items::-webkit-scrollbar-thumb {
+            background: #e5e7eb;
+            border-radius: 10px;
+        }
+        #menu-items::-webkit-scrollbar-thumb:hover {
+            background: #d1d5db;
+        }
+    </style>
+</head>
+<body class="text-gray-800">
+
+    <div class="container mx-auto p-6">
+        <header class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-amber-800">ระบบจัดการร้านSweet Memories</h1>
+        </header>
+
+        <!-- แผนผังโต๊ะ -->
+        <main id="table-map" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6">
+            <!-- โต๊ะจะถูกสร้างโดย JavaScript -->
+        </main>
+    </div>
+
+    <!-- หน้าต่างรับออเดอร์ (Modal) -->
+    <div id="order-modal" class="modal-backdrop hidden">
+        <div class="modal-content">
+            <h2 class="text-3xl font-bold mb-4 text-amber-800">โต๊ะที่ <span id="table-number-title"></span></h2>
+            <div class="flex flex-col md:flex-row gap-6 max-h-[70vh]">
+                <!-- ฝั่งซ้าย: รายการเมนู -->
+                <div class="md:w-1/2 pr-4 border-r border-gray-200 overflow-y-auto" id="menu-items">
+                    <!-- เมนูจะถูกสร้างโดย JavaScript -->
+                </div>
+                <!-- ฝั่งขวา: สรุปออเดอร์ -->
+                <div class="md:w-1/2 flex flex-col">
+                    <h3 class="text-xl font-semibold mb-3">รายการที่สั่ง</h3>
+                    <div id="order-summary" class="space-y-2 mb-4 flex-grow overflow-y-auto pr-2">
+                        <p class="text-gray-500">ยังไม่มีรายการ</p>
+                    </div>
+                    <div class="border-t pt-4 mt-4">
+                        <div class="flex justify-between items-center text-2xl font-bold">
+                            <span>รวมทั้งหมด:</span>
+                            <span id="grand-total">฿0.00</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-8 flex justify-end space-x-4">
+                <button onclick="closeOrderModal()" class="px-6 py-2 bg-gray-300 text-gray-800 rounded-lg hover:bg-gray-400 transition">ยกเลิก</button>
+                <button onclick="confirmOrder()" class="px-6 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition font-semibold">ยืนยันออเดอร์</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- หน้าต่างจำลองใบเสร็จ (Modal) -->
+    <div id="receipt-modal" class="modal-backdrop hidden">
+        <div id="receipt-content" class="receipt-modal-content">
+            <!-- เนื้อหาใบเสร็จจะถูกสร้างโดย JavaScript -->
+        </div>
+    </div>
+
+
+    <script>
+        // --- DATA ---
+        const totalTables = 10;
+        let variantIdCounter = 1; // ตัวนับสำหรับสร้าง ID ที่ไม่ซ้ำกัน
+        
+        // โครงสร้างข้อมูลเมนูใหม่ที่รองรับตัวเลือกย่อย (Variants)
+        const menuData = [
+            {
+                category: "ขนมตระกูลทอง",
+                items: [
+                    { name: "ขนมทองหยิบ", variants: [{ name: "โลละ 300 บ.", price: 300 }, { name: "กล่องละ 30 บ.", price: 30 }] },
+                    { name: "ขนมทองหยอด", variants: [{ name: "โลละ 300 บ.", price: 300 }, { name: "กล่องละ 30 บ.", price: 30 }] },
+                    { name: "ขนมเม็ดขนุน", variants: [{ name: "โลละ 300 บ.", price: 300 }, { name: "กล่องละ 30 บ.", price: 30 }] },
+                    { name: "ขนมฝอยทอง", variants: [{ name: "กล่องละ 20 บ.", price: 20 }] },
+                ]
+            },
+            {
+                category: "ขนมไทยโบราณ",
+                items: [
+                    { name: "ขนมตาล", variants: [{ name: "ลูกละ 5 บ.", price: 5 }, { name: "ถุงละ 20 บ.", price: 20 }, { name: "ถุงละ 30 บ.", price: 30 }] },
+                    { name: "ขนมถ้วย", variants: [{ name: "กล่องละ 20 บ.", price: 20 }, { name: "กล่องละ 30 บ.", price: 30 }] },
+                    { name: "ขนมสังขยา", variants: [{ name: "ถาดละ 35 บ.", price: 35 }] },
+                    { name: "ขนมสังขยาฟักทอง", variants: [{ name: "ถ้วยละ 30 บ.", price: 30 }] },
+                    { name: "ขนมชั้น (พิมพ์ดอกไม้)", variants: [{ name: "ดอกละ 4 บ.", price: 4 }, { name: "กล่องละ 20 บ.", price: 20 }, { name: "กล่องละ 50 บ.", price: 50 }] },
+                    { name: "ขนมหม้อแกง", variants: [{ name: "ถาดละ 50 บ.", price: 50 }] },
+                ]
+            },
+            {
+                category: "ข้าวเหนียว",
+                items: [
+                    { name: "ข้าวต้มมัด", variants: [{ name: "มัดละ 10 บ.", price: 10 }] },
+                    { name: "ข้าวเหนียวมูน", variants: [{ name: "โลละ 160 บ.", price: 160 }, { name: "ถุงละ 40 บ.", price: 40 }, { name: "ถุงละ 80 บ.", price: 80 }] },
+                ]
+            }
+        ].map(category => ({
+            ...category,
+            items: category.items.map(item => ({
+                ...item,
+                variants: item.variants.map(variant => ({ ...variant, id: variantIdCounter++ }))
+            }))
+        }));
+
+        // --- STATE ---
+        let orders = {}; // { tableId: [{ variantId, name, price, quantity }, ...], ... }
+        let currentTableId = null;
+
+        // --- DOM ELEMENTS ---
+        const tableMap = document.getElementById('table-map');
+        const orderModal = document.getElementById('order-modal');
+        const receiptModal = document.getElementById('receipt-modal');
+        const tableNumberTitle = document.getElementById('table-number-title');
+        const menuItemsContainer = document.getElementById('menu-items');
+        const orderSummaryContainer = document.getElementById('order-summary');
+        const grandTotalEl = document.getElementById('grand-total');
+
+        // --- FUNCTIONS ---
+        
+        function renderTables() {
+            tableMap.innerHTML = '';
+            for (let i = 1; i <= totalTables; i++) {
+                const hasOrder = orders[i] && orders[i].length > 0;
+                const tableEl = document.createElement('div');
+                tableEl.className = `p-4 rounded-lg text-center font-bold text-xl shadow-md ${hasOrder ? 'table-occupied' : 'table-available'}`;
+                tableEl.innerText = `โต๊ะ ${i}`;
+                tableEl.onclick = () => openOrderModal(i);
+                tableMap.appendChild(tableEl);
+            }
+        }
+
+        function openOrderModal(tableId) {
+            currentTableId = tableId;
+            if (!orders[currentTableId]) {
+                orders[currentTableId] = [];
+            }
+            tableNumberTitle.innerText = currentTableId;
+            updateOrderSummary();
+            orderModal.classList.remove('hidden');
+        }
+        
+        function closeOrderModal() {
+            if (orders[currentTableId] && orders[currentTableId].length === 0) {
+                delete orders[currentTableId];
+            }
+            currentTableId = null;
+            orderModal.classList.add('hidden');
+            renderTables();
+        }
+
+        function renderMenuItems() {
+            menuItemsContainer.innerHTML = '';
+            menuData.forEach(category => {
+                const categoryEl = document.createElement('div');
+                categoryEl.innerHTML = `<h3 class="text-xl font-bold text-amber-700 my-4">${category.category}</h3>`;
+                menuItemsContainer.appendChild(categoryEl);
+
+                category.items.forEach(item => {
+                    const itemEl = document.createElement('div');
+                    itemEl.className = 'mb-4 p-3 bg-white rounded-lg shadow-sm border';
+                    let variantsHTML = item.variants.map(variant => `
+                        <div class="flex justify-between items-center py-2 border-t first:border-t-0">
+                            <span>${variant.name} <span class="text-gray-500">(฿${variant.price.toFixed(2)})</span></span>
+                            <button onclick="addToOrder(${variant.id})" class="bg-amber-500 text-white w-8 h-8 rounded-full hover:bg-amber-600 font-bold text-lg transition-transform transform hover:scale-110">+</button>
+                        </div>
+                    `).join('');
+                    itemEl.innerHTML = `<h4 class="font-semibold">${item.name}</h4>${variantsHTML}`;
+                    menuItemsContainer.appendChild(itemEl);
+                });
+            });
+        }
+        
+        // เพิ่ม/อัปเดตออเดอร์
+        function findVariantById(variantId) {
+            for (const category of menuData) {
+                for (const item of category.items) {
+                    const found = item.variants.find(v => v.id === variantId);
+                    if (found) {
+                        return { ...found, itemName: item.name };
+                    }
+                }
+            }
+            return null;
+        }
+
+        function addToOrder(variantId) {
+            const variantInfo = findVariantById(variantId);
+            if (!variantInfo) return;
+
+            const orderItem = orders[currentTableId].find(item => item.variantId === variantId);
+
+            if (orderItem) {
+                orderItem.quantity++;
+            } else {
+                orders[currentTableId].push({
+                    variantId: variantInfo.id,
+                    name: `${variantInfo.itemName} (${variantInfo.name})`,
+                    price: variantInfo.price,
+                    quantity: 1,
+                });
+            }
+            updateOrderSummary();
+        }
+
+        // [ใหม่] ฟังก์ชันเพิ่มจำนวน
+        function increaseOrderItem(variantId) {
+             const orderItem = orders[currentTableId].find(item => item.variantId === variantId);
+             if(orderItem) {
+                orderItem.quantity++;
+                updateOrderSummary();
+             }
+        }
+
+        // [ใหม่] ฟังก์ชันลดจำนวน (และลบถ้าเหลือ 0)
+        function decreaseOrderItem(variantId) {
+            const orderItem = orders[currentTableId].find(item => item.variantId === variantId);
+            if(orderItem) {
+                orderItem.quantity--;
+                if(orderItem.quantity === 0) {
+                    orders[currentTableId] = orders[currentTableId].filter(item => item.variantId !== variantId);
+                }
+                updateOrderSummary();
+             }
+        }
+        
+        // อัปเดตสรุปรายการออเดอร์ (พร้อมปุ่ม + / -)
+        function updateOrderSummary() {
+            if (orders[currentTableId].length === 0) {
+                orderSummaryContainer.innerHTML = '<p class="text-gray-500 text-center mt-10">ยังไม่มีรายการ</p>';
+                grandTotalEl.innerText = '฿0.00';
+                return;
+            }
+
+            orderSummaryContainer.innerHTML = '';
+            let total = 0;
+            orders[currentTableId].forEach(item => {
+                const itemTotal = item.price * item.quantity;
+                total += itemTotal;
+                const summaryEl = document.createElement('div');
+                summaryEl.className = 'flex justify-between items-center py-2 border-b';
+                summaryEl.innerHTML = `
+                    <div class="flex-grow">
+                        <p class="font-semibold text-sm">${item.name}</p>
+                        <div class="flex items-center gap-3 mt-1">
+                            <button onclick="decreaseOrderItem(${item.variantId})" class="bg-gray-200 text-gray-700 w-6 h-6 rounded-full font-bold text-lg flex items-center justify-center">-</button>
+                            <span class="font-bold w-5 text-center">${item.quantity}</span>
+                            <button onclick="increaseOrderItem(${item.variantId})" class="bg-gray-200 text-gray-700 w-6 h-6 rounded-full font-bold text-lg flex items-center justify-center">+</button>
+                        </div>
+                    </div>
+                    <span class="font-medium text-right w-24">฿${itemTotal.toFixed(2)}</span>
+                `;
+                orderSummaryContainer.appendChild(summaryEl);
+            });
+            grandTotalEl.innerText = `฿${total.toFixed(2)}`;
+        }
+
+        // 7. ยืนยันออเดอร์
+        function confirmOrder() {
+            if (!orders[currentTableId] || orders[currentTableId].length === 0) {
+                // เปลี่ยนจาก alert เป็น UI ที่ดีกว่าในอนาคต
+                const confirmBtn = document.querySelector('button[onclick="confirmOrder()"]');
+                const originalText = confirmBtn.innerText;
+                confirmBtn.innerText = "กรุณาเพิ่มรายการ";
+                confirmBtn.classList.add('bg-red-500');
+                setTimeout(() => {
+                    confirmBtn.innerText = originalText;
+                    confirmBtn.classList.remove('bg-red-500');
+                }, 2000);
+                return;
+            }
+            showReceipt();
+            closeOrderModal();
+        }
+
+        // 8. แสดงใบเสร็จ (จำลอง)
+        function showReceipt() {
+            const receiptContent = document.getElementById('receipt-content');
+            const now = new Date();
+            const tableIdForReceipt = currentTableId; // <--- บันทึก ID โต๊ะไว้ก่อนที่จะถูกล้าง
+
+            let receiptHTML = `
+                <div class="text-center mb-4">
+                    <h3 class="text-xl font-bold">ใบเสร็จรับเงิน</h3>
+                    <p>ร้านขนมหวานใจไทย</p>
+                    <p class="text-xs">${now.toLocaleDateString('th-TH')} ${now.toLocaleTimeString('th-TH')}</p>
+                </div>
+                <div class="border-b-2 border-dashed border-black pb-2 mb-2">
+                    <p>โต๊ะที่: ${tableIdForReceipt}</p>
+                </div>
+                <div class="space-y-1 text-sm">`;
+            
+            let total = 0;
+            orders[tableIdForReceipt].forEach(item => {
+                const itemTotal = item.price * item.quantity;
+                total += itemTotal;
+                receiptHTML += `
+                    <div class="flex justify-between">
+                        <span>${item.quantity}x ${item.name}</span>
+                        <span>${itemTotal.toFixed(2)}</span>
+                    </div>
+                `;
+            });
+            
+            receiptHTML += `
+                </div>
+                <div class="border-t-2 border-dashed border-black pt-2 mt-2">
+                    <div class="flex justify-between font-bold text-lg">
+                        <span>ยอดรวม</span>
+                        <span>${total.toFixed(2)} บาท</span>
+                    </div>
+                </div>
+                <div class="text-center mt-6 text-sm">
+                    <p>ขอบคุณที่ใช้บริการครับ</p>
+                </div>
+                <div class="mt-6 flex flex-col space-y-2">
+                     <button onclick="printAndClearTable(${tableIdForReceipt})" class="w-full bg-blue-500 text-white py-2 rounded-lg hover:bg-blue-600">พิมพ์และเคลียร์โต๊ะ</button>
+                     <button onclick="closeReceiptModalOnly()" class="w-full bg-gray-500 text-white py-2 rounded-lg hover:bg-gray-600">ปิด</button>
+                </div>
+            `;
+            
+            receiptContent.innerHTML = receiptHTML;
+            receiptModal.classList.remove('hidden');
+        }
+        
+        function printAndClearTable(tableId) { // <--- รับค่า ID โต๊ะโดยตรง
+             // เปลี่ยนจาก alert เป็น UI ที่ดีกว่า
+            const printBtn = document.querySelector(`button[onclick="printAndClearTable(${tableId})"]`);
+            const allButtons = receiptModal.querySelectorAll('button');
+            allButtons.forEach(btn => btn.disabled = true);
+            
+            printBtn.innerText = "กำลังพิมพ์...";
+
+            setTimeout(() => {
+                 alert("จำลองการส่งข้อมูลไปที่เครื่องพิมพ์เรียบร้อยแล้ว และเคลียร์โต๊ะ");
+                 
+                 delete orders[tableId]; // <--- ใช้ ID โต๊ะที่รับมาเพื่อลบข้อมูล
+                 receiptModal.classList.add('hidden');
+                 renderTables();
+
+                 // Re-enable buttons for next time
+                 allButtons.forEach(btn => btn.disabled = false);
+            }, 1500);
+        }
+
+        function closeReceiptModalOnly() {
+            receiptModal.classList.add('hidden');
+        }
+
+
+        // --- INITIALIZATION ---
+        function init() {
+            renderTables();
+            renderMenuItems();
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>
+
+
+
